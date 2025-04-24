@@ -2,6 +2,10 @@
 % SOC- OCV Curve
 % 30min, 1hr rest voltage = OCV
 % Generate yearly SOC - OCV Curve
+% 1. Find discharging event within 0.05C with constant current phase duration
+% over 3 seconds.
+% 2. Calculate R from each Discharge Event and save as struct
+% 3. Generate OCV-SOC Curve.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 clc; clear;
@@ -9,9 +13,8 @@ clc; clear;
 %% Directory
 clc; clear; close all;
 
-% === 설정 ===
 dataDir  = 'D:\JCW\KENTECH\Projects\KEPCO\ESS_Data_Preprocessing';
-yearList = {'2021', '2022', '2023'};
+yearList = {'2021'}; % , '2022', '2023'};
 saveDir  = fullfile(dataDir, 'qOCV_SOC\ver01');
 
 if ~exist(saveDir, 'dir')
@@ -63,11 +66,10 @@ for y = 1:length(yearList)
             soc = Raw.Total_Average_SOC;
             T_batt = Raw.Plc_Battery_Temperature_sync;
 
-            % 이 부분부터 수정 시작 - 기존 코드 삭제
             dischargeEvents = [];
             event_count = 0;
             
-            % 1. 먼저 전체 방전 구간 감지 (시각화용)
+            % 1. 방전 구간 
             i = 1;
             discharge_start = [];
             discharge_end = [];
@@ -75,7 +77,7 @@ for y = 1:length(yearList)
             
             % 방전 구간 식별 (전류가 음수인 구간)
             for j = 1:length(I)
-                if I(j) < 0 && ~in_discharge
+                if I(j) < 0 && diff(I) < 0  % ~in_discharge
                     in_discharge = true;
                     discharge_start = [discharge_start, j];
                 elseif I(j) >= 0 && in_discharge
@@ -84,28 +86,24 @@ for y = 1:length(yearList)
                 end
             end
             
-            % 마지막 구간이 방전 중이면 끝점 추가
-            if in_discharge
+             if in_discharge
                 discharge_end = [discharge_end, length(I)];
             end
-            
-            % 방전 구간이 없으면 다음 파일로
+                        
             if isempty(discharge_start)
                 dischargeEventStruct.(safeDateStr) = struct([]);
                 fprintf('[%s] No Discharge Event — Disregard Plot\n', dateStr);
                 continue;
             end
             
-            % 2. 각 방전 구간 내에서 저동적 세그먼트 식별 및 DCR 계산
-            dynamic_filter_threshold = C_rate_limit * 2; % C-rate의 10% (0.1C)
+             dynamic_filter_threshold = C_rate_limit * 2; % C-rate의 10% (0.1C)
             min_segment_length = 10; % 최소 세그먼트 길이
             
             for seg = 1:length(discharge_start)
                 seg_start = discharge_start(seg);
                 seg_end = discharge_end(seg);
                 
-                % 방전 구간 내 저동적 세그먼트 찾기
-                i = seg_start;
+                 i = seg_start;
                 while i < seg_end
                     % C-rate 제한 확인
                     if abs(I(i)) >= C_rate_limit
