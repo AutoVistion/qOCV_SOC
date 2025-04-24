@@ -8,7 +8,7 @@
 % 3. Generate OCV-SOC Curve.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-clc; clear;
+clc; clear; 
 
 %% Directory
 clc; clear; close all;
