@@ -12,7 +12,7 @@ clc; clear; close all;
 % === 설정 ===
 dataDir  = 'D:\JCW\KENTECH\Projects\KEPCO\ESS_Data_Preprocessing';
 yearList = {'2021', '2022', '2023'};
-saveDir  = fullfile(dataDir, 'ESS_Discharging_Events_DCR');
+saveDir  = fullfile(dataDir, 'qOCV_SOC\ver01');
 
 if ~exist(saveDir, 'dir')
     mkdir(saveDir);
@@ -305,37 +305,53 @@ for i = 1:length(dateList)
 end
 
 %% DCR 룩업 테이블 생성 및 시각화
-% SOC 및 온도 구간 정의
-SOC_bins_DCR = 0:5:100;  % 5% 단위
-Temp_bins = 15:5:35;     % 5°C 단위
+% % SOC 및 온도 구간 정의
+% SOC_bins_DCR = 0:5:100;  % 5% 단위
+% Temp_bins = 15:5:35;     % 5°C 단위
+% 
+% for y = 1:length(yearList)
+%     year = yearList{y};
+% 
+%     DCR_map = DCR_lookup.(year);
+%     if all(isnan(DCR_map(:)))
+%         warning("Not enough data for %s DCR heatmap", year);
+%         continue;
+%     end
+% 
+%     fig3 = figure('Position', [100 100 800 500]);
+%     imagesc(SOC_bins_DCR(1:end-1), Temp_bins(1:end-1), DCR_map');
+%     set(gca, 'YDir', 'normal');
+%     xlabel('SOC [%]');
+%     ylabel('Battery Temperature [°C]');
+%     title(['DCR Heatmap (SOC–Temp) – ', year]);
+%     colormap(jet);
+%     colorbar;
+% 
+%     % DCR 범위 자동 설정
+%     dcr_min = min(DCR_map(:), [], 'omitnan');
+%     dcr_max = max(DCR_map(:), [], 'omitnan');
+%     if ~isnan(dcr_min) && ~isnan(dcr_max)
+%         caxis([dcr_min dcr_max]);
+%     end
+% 
+%     % 저장 경로
+%     fig_file = fullfile(saveDir, ['DCR_Heatmap_', year, '.fig']);
+%     saveas(gcf, fig_file);
+%     close(gcf);
+% end
 
-for y = 1:length(yearList)
-    year = yearList{y};
 
-    DCR_map = DCR_lookup.(year);
-    if all(isnan(DCR_map(:)))
-        warning("Not enough data for %s DCR heatmap", year);
-        continue;
-    end
-
-    fig3 = figure('Position', [100 100 800 500]);
-    imagesc(SOC_bins_DCR(1:end-1), Temp_bins(1:end-1), DCR_map');
-    set(gca, 'YDir', 'normal');
-    xlabel('SOC [%]');
-    ylabel('Battery Temperature [°C]');
-    title(['DCR Heatmap (SOC–Temp) – ', year]);
-    colormap(jet);
-    colorbar;
-
-    % DCR 범위 자동 설정
-    dcr_min = min(DCR_map(:), [], 'omitnan');
-    dcr_max = max(DCR_map(:), [], 'omitnan');
-    if ~isnan(dcr_min) && ~isnan(dcr_max)
-        caxis([dcr_min dcr_max]);
-    end
-
-    % 저장 경로
-    fig_file = fullfile(saveDir, ['DCR_Heatmap_', year, '.fig']);
-    saveas(gcf, fig_file);
-    close(gcf);
-end
+%% Upload to Git
+% current_dir = pwd;
+% cd('ver01');
+% cd('D:/JCW/KENTECH/Projects/KEPCO/ESS_Data_Preprocessing/qOCV_SOC');
+% 
+% system('git add ver01/');
+% system('git commit -m "Add ver01 Folder');
+% 
+% % system('git remote add origin https://github.com/AutoVistion/qOCV_SOC.git');
+% 
+% system('git push -u origin main');
+% 
+% cd(current_dir);
+% disp("Git Upload Complete");
