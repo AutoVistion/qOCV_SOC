@@ -12,7 +12,7 @@ clc; clear;
 clc; clear; close all;
 
 dataDir  = 'D:\JCW\KENTECH\Projects\KEPCO\ESS_Data_Preprocessing';
-yearList = {'2021'}; %, '2022', '2023'};
+yearList = {'2021', '2022', '2023'};
 saveDir  = fullfile(dataDir, 'qOCV_SOC\ver01');
 
 if ~exist(saveDir, 'dir')
@@ -26,7 +26,6 @@ idle_threshold           = 1; %Cnom*0.001;
 
 min_seg_length           = 3;         % C-rate limit 최소 구간 길이(초)
 min_dSOC                 = 1;         % mininum SOC for meaningful Voltage variation
-zero_threshold           = 0.1;
 SOC_bins                 = 0:1:100;   % SOC binning
 
 % min_thruput              = 0.05;      % charge/discharge thruput filter for SOC variation
@@ -43,7 +42,7 @@ Vcorrected = struct();
 for y = 1:length(yearList)
     yName = matlab.lang.makeValidName(yearList{y});
     for b = 1:length(SOC_bins)-1
-        bName = ['bin' num2str(SOC_bins(b))];
+        bName = ['bin' num2str(SOC_bins(b))]; 
         qOCV_binned.(yName).(bName) = [];
     end
 end
@@ -94,7 +93,7 @@ for y = 1:length(yearList)
             while i <= length(I) - min_seg_length
                 % Discharge event starting condition: i-1: idle, i: < 0                
                 if I(i) < 0 && abs(I(i-1)) <= idle_threshold
-                    fprintf('[%s] 방전 후보: i = %d, I = %.2f, I(i-1) = %.2f\n', dateStr, i, I(i), I(i-1));
+                    fprintf('[%s] 방전이벤트 후보: i = %d, I = %.2f, I(i-1) = %.2f\n', dateStr, i, I(i), I(i-1));
                     k = i - 1;
                     while k >= 1 && abs(I(k)) <= idle_threshold
                         k = k - 1;
@@ -132,7 +131,7 @@ for y = 1:length(yearList)
                     
                     % Condition 0-2: Avg current > 1
                     if mean(abs(I_seg)) < idle_threshold
-                        fprintf('[%s] Mean I %.2fA < 0.2A → 제외\n', dateStr, mean(abs(I_seg)));
+                        fprintf('[%s] Mean I %.2fA < 0.2A = 제외\n', dateStr, mean(abs(I_seg)));
                         i = end_idx+1;
                         continue;
                     end
@@ -147,24 +146,25 @@ for y = 1:length(yearList)
                     end
 
                     % Condition 2: Max dI: 0.1
-                    % if abs(max(I_seg) - min(I_seg)) > Cnom * 0.1 %   
-                    if any(abs(diff(I_seg))) > Cnom * 0.1
-                        fprintf('[%s] ΔI %.2f > 0.1C → 제외\n', dateStr, abs(max(I_seg) - min(I_seg)));
+                    if abs(max(I_seg) - min(I_seg)) > Cnom * 0.2 %   
+                    % if any(abs(diff(I_seg))) > Cnom * 0.1
+                        fprintf('[%s] ΔI %.2f > 0.1C = 제외\n', dateStr, abs(max(I_seg) - min(I_seg)));
                         i = end_idx+1;
                         continue;
                     end
 
                     % Condition 3: Max discharge current: 0.1C
-                    if max(abs(I_seg)) > C_rate_limit
-                        fprintf('[%s] Max I %.2fA > 0.1C → 제외\n', dateStr, max(abs(I_seg)));                       
+                    if max(abs(I_seg)) > 1024*0.1
+                        fprintf('[%s] Max I %.2fA > 0.1C = 제외\n', dateStr, max(abs(I_seg)));                       
                         i = end_idx+1;
                         continue
                     end
                     
                     % Condition 4: dSOC > 1%
-                    dSOC = abs(soc(end_idx) - soc(start_idx)); % max(soc(start_idx:end_idx) - min(soc(start_idx:end_idx)) < 1
-                    if dSOC < min_dSOC
-                        fprintf('[%s] dSOC %.2f%% < %.2f%% → 제외\n', dateStr, dSOC, min_dSOC);
+                    % dSOC = abs(soc(end_idx) - soc(start_idx)); % max(soc(start_idx:end_idx) - min(soc(start_idx:end_idx)) < 1
+                    dSOC = abs(max(soc) - min(soc));
+                    if dSOC < min_dSOC % (1%)                    
+                        fprintf('[%s] dSOC %.2f%% < %.2f%% = 제외\n', dateStr, dSOC, min_dSOC);
                         i = end_idx+1;
                         continue;
                     end
