@@ -12,7 +12,7 @@ clc; clear;
 clc; clear; close all;
 
 dataDir  = 'D:\JCW\KENTECH\Projects\KEPCO\ESS_Data_Preprocessing';
-yearList = {'2021', '2022', '2023'};
+yearList = {'2021'}; %, '2022', '2023'};
 saveDir  = fullfile(dataDir, 'qOCV_SOC\ver01');
 
 if ~exist(saveDir, 'dir')
