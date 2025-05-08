@@ -24,7 +24,7 @@ min_seg_length  = 5;        % Minimum discharge length [seconds]
 min_dSOC        = 1;         % Minimum SOC change [%]
 % soc_bins        = 0:1:100;  % SOC binning
 
-%% --- 구조체 리팩토링: 모든 이벤트와 논문 조건 이벤트 분리 ---
+
 all_events = struct();
 
 %% Main Processing Loop
@@ -59,7 +59,7 @@ for y = 1:length(yearList)
             % Detect discharge events
             discharge_phases = detectDischargePhases(t, I, V, soc, T_batt, min_seg_length, idle_threshold, Cnom, min_dSOC);
 
-            % 모든 이벤트 저장 (raw 데이터만)
+            % raw 데이터만
             all_events.(fieldName) = struct();
             phases = fieldnames(discharge_phases);
             for p = 1:length(phases)
@@ -105,7 +105,7 @@ end
 
 plotValidQOCVCurves(all_events, saveDir);
 
-plotDischargeEventsOverlay_ver02(dataDir, all_events, saveDir)
+% plotDischargeEventsOverlay_ver02(dataDir, all_events, saveDir)
 
 plotMonthlyQOCVCurves(all_events, saveDir)
 
@@ -225,7 +225,7 @@ function discharge_phases = detectDischargePhases(t, I, V, soc, T_batt, min_seg_
             eventCount = eventCount+1;
             evtName = ['DchEvent_', num2str(eventCount)];
 
-            % DCIR 및 Vcorr(qOCV) 계산 추가
+            % DCIR 및 Vcorr 계산 추가
             I_evt = I(start_idx:end_idx);
             V_evt = V(start_idx:end_idx);
             V1 = V_evt(1); I1 = I_evt(1);
@@ -324,13 +324,11 @@ function plotValidQOCVCurves(all_events, saveDir)
     saveas(fig2, fullfile(saveDir, 'Mean_qOCV_Curve_BeforeAlignment.fig'));
     close(fig2);
 
-    %% 3. 각 이벤트별로 SOC offset(shift) 계산 및 적용 (논문 방식)
     aligned_soc = [];
     aligned_vcorr = [];
     for k = 1:event_count
         soc_k = event_soc{k};
         vcorr_k = event_vcorr{k};
-        % shift 후보 범위: -5% ~ +5% (1% 단위)
         shifts = -5:0.1:5;
         best_shift = 0;
         min_err = inf;
@@ -349,12 +347,10 @@ function plotValidQOCVCurves(all_events, saveDir)
                 best_shift = shifts(s);
             end
         end
-        % 최적 shift 적용
         soc_aligned = soc_k + best_shift;
         aligned_soc = [aligned_soc; soc_aligned(:)];
         aligned_vcorr = [aligned_vcorr; vcorr_k(:)];
     end
-    % 최종 평균 qOCV 곡선
     mean_v_aligned = nan(size(soc_bins));
     for i = 1:length(soc_bins)
         idx = aligned_soc >= soc_bins(i) & aligned_soc < soc_bins(i)+1;
@@ -373,78 +369,74 @@ function plotValidQOCVCurves(all_events, saveDir)
     close(fig3);
 end
 
-function plotDischargeEventsOverlay_ver02(dataDir, all_events, saveDir)
-% dataDir: raw 데이터가 있는 상위 폴더 (예: 'D:/JCW/KENTECH/Projects/KEPCO/ESS_Data_Preprocessing')
-% all_events: all_events 구조체 (또는 valid_events도 사용 가능)
-% saveDir: 그림 저장 폴더
-
-    dateList = fieldnames(all_events);
-    
-    for d = 1:length(dateList)
-        dayField = dateList{d}; % 예: 'date_20210101'
-        dateStr = extractAfter(dayField, 'date_'); % '20210101'
-        year = dateStr(1:4);
-        month = dateStr(5:6);
-        rawPath = fullfile(dataDir, year, [year month], ['Raw_' dateStr '.mat']);
-    
-        if ~exist(rawPath, 'file')
-            fprintf('[%s] Raw file not found\n', dateStr);
-            continue;
-        end
-    
-        % Load raw data
-        load(rawPath); % Raw 구조체 포함
-        t = Raw.sync_Time;
-        I = Raw.Online_DC_Current;
-        V = Raw.Total_Average_CV_Sum;
-        soc = Raw.Total_Average_SOC;
-    
-        % Create figure
-        fig = figure('Visible', 'on', 'Name', ['Discharge Events Overlay - ', dateStr], 'Position', [100 100 1400 900]);
-    
-        % 1. Current subplot
-        subplot(3,1,1);
-        plot(t, I, 'Color', [0.7 0.7 0.7], 'LineWidth', 1); hold on;
-        ylabel('Current [A]'); xlabel('Time');
-        title(['Raw Current with Detected Discharge Events – ', dateStr]);
-        grid on;
-    
-        % 2. Voltage subplot
-        subplot(3,1,2);
-        plot(t, V, 'Color', [0.7 0.7 0.7], 'LineWidth', 1); hold on;
-        ylabel('Voltage [V]'); xlabel('Time');
-        title(['Raw Voltage with Detected Discharge Events – ', dateStr]);
-        grid on;
-    
-        % 3. SOC subplot
-        subplot(3,1,3);
-        plot(t, soc, 'Color', [0.7 0.7 0.7], 'LineWidth', 1); hold on;
-        ylabel('SOC [%]'); xlabel('Time');
-        title(['Raw SOC with Detected Discharge Events – ', dateStr]);
-        grid on;
-    
-        % Overlay detected events in red
-        eventNames = fieldnames(all_events.(dayField));
-        for e = 1:length(eventNames)
-            evt = all_events.(dayField).(eventNames{e});
-            idx1 = evt.start_idx;
-            idx2 = evt.end_idx;
-    
-            subplot(3,1,1);
-            plot(t(idx1:idx2), I(idx1:idx2), 'r', 'LineWidth', 2);
-    
-            subplot(3,1,2);
-            plot(t(idx1:idx2), V(idx1:idx2), 'r', 'LineWidth', 2);
-    
-            subplot(3,1,3);
-            plot(t(idx1:idx2), soc(idx1:idx2), 'r', 'LineWidth', 2);
-        end
-    
-        % Save figure
-        saveas(fig, fullfile(saveDir, ['DischargeEventsOverlay_' dateStr '.fig']));
-        close(fig);
-    end
-end
+%%
+% function plotDischargeEventsOverlay_ver02(dataDir, all_events, saveDir)
+% 
+%     dateList = fieldnames(all_events);
+% 
+%     for d = 1:length(dateList)
+%         dayField = dateList{d}; % 
+%         dateStr = extractAfter(dayField, 'date_'); % '20210101'
+%         year = dateStr(1:4);
+%         month = dateStr(5:6);
+%         rawPath = fullfile(dataDir, year, [year month], ['Raw_' dateStr '.mat']);
+% 
+%         if ~exist(rawPath, 'file')
+%             fprintf('[%s] Raw file not found\n', dateStr);
+%             continue;
+%         end
+% 
+%         load(rawPath); % Raw 구조체 포함
+%         t = Raw.sync_Time;
+%         I = Raw.Online_DC_Current;
+%         V = Raw.Total_Average_CV_Sum;
+%         soc = Raw.Total_Average_SOC;
+% 
+%         fig = figure('Visible', 'on', 'Name', ['Discharge Events Overlay - ', dateStr], 'Position', [100 100 1400 900]);
+% 
+%         % 1. Current subplot
+%         subplot(3,1,1);
+%         plot(t, I, 'Color', [0.7 0.7 0.7], 'LineWidth', 1); hold on;
+%         ylabel('Current [A]'); xlabel('Time');
+%         title(['Raw Current with Detected Discharge Events – ', dateStr]);
+%         grid on;
+% 
+%         % 2. Voltage subplot
+%         subplot(3,1,2);
+%         plot(t, V, 'Color', [0.7 0.7 0.7], 'LineWidth', 1); hold on;
+%         ylabel('Voltage [V]'); xlabel('Time');
+%         title(['Raw Voltage with Detected Discharge Events – ', dateStr]);
+%         grid on;
+% 
+%         % 3. SOC subplot
+%         subplot(3,1,3);
+%         plot(t, soc, 'Color', [0.7 0.7 0.7], 'LineWidth', 1); hold on;
+%         ylabel('SOC [%]'); xlabel('Time');
+%         title(['Raw SOC with Detected Discharge Events – ', dateStr]);
+%         grid on;
+% 
+%         % Overlay detected events in red
+%         eventNames = fieldnames(all_events.(dayField));
+%         for e = 1:length(eventNames)
+%             evt = all_events.(dayField).(eventNames{e});
+%             idx1 = evt.start_idx;
+%             idx2 = evt.end_idx;
+% 
+%             subplot(3,1,1);
+%             plot(t(idx1:idx2), I(idx1:idx2), 'r', 'LineWidth', 2);
+% 
+%             subplot(3,1,2);
+%             plot(t(idx1:idx2), V(idx1:idx2), 'r', 'LineWidth', 2);
+% 
+%             subplot(3,1,3);
+%             plot(t(idx1:idx2), soc(idx1:idx2), 'r', 'LineWidth', 2);
+%         end
+% 
+%         % Save figure
+%         saveas(fig, fullfile(saveDir, ['DischargeEventsOverlay_' dateStr '.fig']));
+%         close(fig);
+%     end
+% end
 
 function plotMonthlyQOCVCurves(all_events, saveDir)
     % 월별로 공칭용량 추정 및 qOCV-SOCnom 곡선 플롯
@@ -487,7 +479,6 @@ function plotMonthlyQOCVCurves(all_events, saveDir)
         end
         % 월별 평균 Cnom
         cnom_month = mean(cnom_list, 'omitnan');
-        % 다시 이벤트별로 SOCnom 계산 및 qOCV 수집
         for d = find(idx_month)
             events = fieldnames(all_events.(dateList{d}));
             for e = 1:length(events)
@@ -497,7 +488,7 @@ function plotMonthlyQOCVCurves(all_events, saveDir)
                     Vcorr_seq = evt.Vcorr_seq(:);
                     dAh_seq = cumsum(I_seq)/3600; % 누적 방전량
                     SOCnom_seq = 100 - 100 * abs(dAh_seq) / cnom_month;
-                    % 시작점 보정: 원래 SOC 위치에 맞추기
+
                     SOCnom_seq_shifted = SOCnom_seq - SOCnom_seq(1) + evt.soc_seq(1);
                     socnom_all = [socnom_all; SOCnom_seq_shifted];
                     vcorr_all = [vcorr_all; Vcorr_seq];
@@ -507,7 +498,7 @@ function plotMonthlyQOCVCurves(all_events, saveDir)
         if isempty(socnom_all) || isempty(vcorr_all)
             continue;
         end
-        % SOCnom binning 및 평균 qOCV
+        % SOCnom binning, 평균 qOCV
         soc_bins = 0:1:100;
         mean_v = nan(size(soc_bins));
         for i = 1:length(soc_bins)
